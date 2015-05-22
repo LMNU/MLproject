@@ -19,7 +19,7 @@ Using data from the Human Activity Recognition project, I developped a model to 
 # Dataset
 The data set comes from the [Human Acticity Recognition](http://groupware.les.inf.puc-rio.br/har) project. We have data from sensors on the belt, forearm, arm and dumbell of 6 participants. They were asked to perform barbell lifts correctly (this was denoted as class A) and incorrectly in 4 additional ways (classes B, C, D and E). More information on the dataset can be found on the [website](http://groupware.les.inf.puc-rio.br/har) or in the [paper](http://groupware.les.inf.puc-rio.br/work.jsf?p1=11201).
 
-```{r,echo=F,message=FALSE,warning=FALSE,cache=TRUE,results='hide'}
+```{r,echo=F,message=FALSE,warning=FALSE,results='hide'}
 set.seed(1)
 training <- read.csv("pml-training.csv",stringsAsFactors=F,nrows=19622)
 testing<-read.csv("pml-testing.csv",stringsAsFactors=F,nrows=20)
@@ -89,7 +89,7 @@ The final training sample contains `r nrow(training)` observations and the valid
 # Data exploration
 As an example, I show below a pairs-plot of 4 features vs the classe from the partitioned training dataset: roll, pitch, yaw and total acceleration of the belt sensor. It shows for example that yaw_belt already distinguishes quite well between classe A and all the others. For the classification models, I use all 52 available features from the 4 sensors.
 
-```{r,echo=F,cache=TRUE,fig.width=6,fig.height=4}
+```{r,echo=F,fig.width=6,fig.height=4}
 pairs(dplyr::select(training,classe,roll_belt,pitch_belt,yaw_belt))
 ```
 
