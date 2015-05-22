@@ -11,7 +11,7 @@ output:
 <br>
 
 # Executive summary
-Using data from the Human Activity Recognition project, I developped a model to predict whether weight lifting exercises were performed correctly, or whether one of 4 common mistakes were made. I trained four models (Recursive Partitioning, Random Forest, Generalized Boosted Regression Model and Linear Discriminant Analysis). Cross-validation showed that the Random Forest was the most accurate model, with an estimated out-of-sample error of .7%. Finally, predicting classes on the 20 testing observations and uploading predictions to the course website, showed that all 20 predictions were correct.
+Using data from the Human Activity Recognition project, I developped a model to predict whether weight lifting exercises were performed correctly, or whether one of 4 common mistakes were made. I trained four models (Recursive Partitioning, Random Forest, Generalized Boosted Regression Model and Linear Discriminant Analysis). Cross-validation showed that the Random Forest was the most accurate model, with an estimated out-of-sample error of 0.7%. Finally, predicting classes on the 20 testing observations and uploading predictions to the course website, showed that all 20 predictions were correct.
 
 
 <br>
