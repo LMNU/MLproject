@@ -1,0 +1,182 @@
+---
+title: 'Identifying correct peformance of weight lifting exercises '
+author: "Laura Nurski"
+date: "21 May 2015"
+output:
+  html_document:
+    fig_caption: yes
+    number_sections: yes
+---
+
+<br>
+
+# Executive summary
+Using data from the Human Activity Recognition project, I developped a model to predict whether weight lifting exercises were performed correctly, or whether one of 4 common mistakes were made. I trained four models (Recursive Partitioning, Random Forest, Generalized Boosted Regression Model and Linear Discriminant Analysis). Cross-validation showed that the Random Forest was the most accurate model, with an estimated out-of-sample error of .7%. Finally, predicting classes on the 20 testing observations and uploading predictions to the course website, showed that all 20 predictions were correct.
+
+
+<br>
+
+# Dataset
+The data set comes from the [Human Acticity Recognition](http://groupware.les.inf.puc-rio.br/har) project. We have data from sensors on the belt, forearm, arm and dumbell of 6 participants. They were asked to perform barbell lifts correctly (this was denoted as class A) and incorrectly in 4 additional ways (classes B, C, D and E). More information on the dataset can be found on the [website](http://groupware.les.inf.puc-rio.br/har) or in the [paper](http://groupware.les.inf.puc-rio.br/work.jsf?p1=11201).
+
+```{r,echo=F,message=FALSE,warning=FALSE,cache=TRUE,results='hide'}
+set.seed(1)
+training <- read.csv("pml-training.csv",stringsAsFactors=F,nrows=19622)
+testing<-read.csv("pml-testing.csv",stringsAsFactors=F,nrows=20)
+```
+
+<br>
+
+# Data cleaning and feature selection
+We received a training sample with 19,622 observations and a testing sample with 20 observations. The original data sets contain `r ncol(training)-1` features. However, many of those contain "NA" for every observation and thus contain no predictive power. I start by dropping all columns which contain only NA's.
+
+
+```{r,echo=F, results='hide'}
+# Only keep columns in testing set that are not ALL NA values
+columns<-colSums(is.na(testing))<nrow(testing)
+testing <- testing[,columns]
+training <- training[,columns]
+```
+
+This leaves me with `r ncol(training)-1` features. I take the assignment literally and decide to only use information from accelerometers on the belt, forearm, arm and dumbell. This means I further drop 7 features that contain the names of the subjects, timestamps, windows and observation numbers. Furthermore, I transform the classe variable to a factor variable since we are dealing with a classification problem.
+
+```{r,echo=F,results='hide'}
+# Only keep variables from accelerometers on the belt, forearm, arm, and dumbell
+training <- training[,grep("arm|forearm|dumbbell|belt|classe",names(training))]
+training$classe <- as.factor(training$classe)
+testing <- testing[,grep("arm|forearm|dumbbell|belt|problem_id",names(testing))]
+```
+
+Finally, I am left with `r ncol(training)-1` features in both the training and the testing data set. These 52 features correspond to 13 measurements for each of the four accelerometers (13x4). Those 13 measurements are the roll, pitch, yaw and total acceleration (4 features), as well as the x, y and z measurements of the gyroscope, accelerometer and magnet of the sensor (3x3 features). This gives us 13 features for each of the four sensors, or 52 features in total. Below I list all 52 features used in my analysis:
+
+| belt measurements | arm measurements | dumbbell measurements | forearm measurements | 
+|-------------------|------------------|-----------------------|----------------------|
+| roll_belt         | roll_arm         | roll_dumbbell         | roll_forearm         |
+| pitch_belt        | pitch_arm        | pitch_dumbbell        | pitch_forearm        |
+| yaw_belt          | yaw_arm          | yaw_dumbbell          | yaw_forearm          |
+| total_accel_belt  | total_accel_arm  | total_accel_dumbbell  | total_accel_forearm  |
+| gyros_belt_x      | gyros_arm_x      | gyros_dumbbell_x      | gyros_forearm_x      |
+| gyros_belt_y      | gyros_arm_y      | gyros_dumbbell_y      | gyros_forearm_y      |
+| gyros_belt_z      | gyros_arm_z      | gyros_dumbbell_z      | gyros_forearm_z      |
+| accel_belt_x      | accel_arm_x      | accel_dumbbell_x      | accel_forearm_x      |
+| accel_belt_y      | accel_arm_y      | accel_dumbbell_y      | accel_forearm_y      |
+| accel_belt_z      | accel_arm_z      | accel_dumbbell_z      | accel_forearm_z      |
+| magnet_belt_x     | magnet_arm_x     | magnet_dumbbell_x     | magnet_forearm_x     |
+| magnet_belt_y     | magnet_arm_y     | magnet_dumbbell_y     | magnet_forearm_y     |
+| magnet_belt_z     | magnet_arm_z     | magnet_dumbbell_z     | magnet_forearm_z     |
+
+```{r,echo=F,results='hide'}
+grep("belt",names(training),value=T)
+```
+
+<br>
+
+# Data partitioning
+
+For cross-validation, I partition the large training sample in a smaller training sample (60% of original training sample) and a validation sample (40% of original training sample).
+
+```{r,echo=F,message=FALSE,warning=FALSE,results='hide'}
+library(caret)
+inTrain = createDataPartition(training$classe, p = 0.6)[[1]]
+validating = training[-inTrain,]
+training = training[inTrain,]
+```
+
+The final training sample contains `r nrow(training)` observations and the validation sample contains `r nrow(validating)` observations.
+
+<br>
+
+# Data exploration
+As an example, I show below a pairs-plot of 4 features vs the classe from the partitioned training dataset: roll, pitch, yaw and total acceleration of the belt sensor. It shows for example that yaw_belt already distinguishes quite well between classe A and all the others. For the classification models, I use all 52 available features from the 4 sensors.
+
+```{r,echo=F,cache=TRUE,fig.width=6,fig.height=4}
+pairs(dplyr::select(training,classe,roll_belt,pitch_belt,yaw_belt))
+```
+
+<br>
+
+# Training
+Using the training data set, I train 4 different models in the `caret` package:
+
+* model 1: recursive partitioning (`rpart`)
+* model 2: random forest (`rf`)
+* model 3: generalized boosted regression model (`gbm`)
+* model 4: linear discriminant analysis (`lda`)
+
+Each of the four models was trained with the default options. 
+
+```{r,echo=F,results='hide'}
+# 4. Training
+# fit1 <- train(classe~.,data=training,method="rpart"); saveRDS(fit1, "fit1.rds") 
+# fit2 <- train(classe~.,data=training,method="rf"); saveRDS(fit2, "fit2.rds") 
+# fit3 <- train(classe~.,data=training,method="gbm"); saveRDS(fit3, "fit3.rds") 
+# fit4 <- train(classe~.,data=training,method="lda"); saveRDS(fit4, "fit4.rds") 
+fit1<-readRDS("fit1.rds")
+fit2<-readRDS("fit2.rds")
+fit3<-readRDS("fit3.rds")
+fit4<-readRDS("fit4.rds")
+```
+
+The accuracy of each model on the training data set is the following:
+
+```{r,echo=F,results='asis'}
+acc_training<-data.frame(rpart=fit1$results[1,2],rf=fit2$results[1,2],
+                         gbm=fit3$results[1,2],lda=fit4$results[1,2])
+rownames(acc_training)<-("Accuracy")
+library(knitr)
+kable(acc_training,digits=3)
+```
+
+The most accurate model on the training data set is model 3, the Generalized Boosted Regression Model. On the training data set, it accurately predicts 100% of the observations. However, to avoid overfitting and to get a good estimate of the out of sample error, I perform cross-validation for all 4 models in the next section.
+
+<br>
+
+# Cross-validation
+Using the 40% of the original training data set which we set aside ("validation data set"), I perform cross-validation by predicting each of the 4 models on the validation data set and measuring how accurately each model predicts the classe. This gives a good estimate of how well each model will predict on the testing data set, i.e. the out of sample error.
+
+```{r,echo=F,message=F,warning=F,results='hide'}
+pred1 <- predict(fit1,newdata=validating)
+pred2 <- predict(fit2,newdata=validating)
+pred3 <- predict(fit3,newdata=validating)
+pred4 <- predict(fit4,newdata=validating)
+c1<-confusionMatrix(pred1, validating$classe)
+c2<-confusionMatrix(pred2, validating$classe)
+c3<-confusionMatrix(pred3, validating$classe)
+c4<-confusionMatrix(pred4, validating$classe)
+```
+
+The accuracy of each model on the validation data set is the following:
+
+```{r,echo=F,results='asis'}
+acc_validating<-data.frame(rpart=c1$overall[1],rf=c2$overall[1],gbm=c3$overall[1],lda=c4$overall[1])
+rownames(acc_validating)<-("Accuracy")
+kable(acc_validating,digits=3)
+```
+
+Now, the most accurate model to predict on the validation data set is model 2, the Random Forest. On the validation sample it accurately predicts 99.3% of the observations. The estimate of the out of sample error is 0.7%, i.e. I estimate that about 0.7% of the observations in the testing data set will be missclassified.
+
+The confusion matrix below shows all combinations of actual classes and predicted classes for my final model, the Random Forest.
+
+```{r,echo=F}
+kable(c2$table,digits=2)
+```
+
+<br>
+
+# Prediction
+Since the Random Forest is the most accurate model, I use this to predict the 20 observations in the testing data set. After uploading the predictions to the course website, each prediction proved to be correct.
+
+```{r,echo=F,results='hide'}
+testpred2<-predict(fit2,newdata=testing)
+```
+
+```{r,echo=F,results='hide'}
+pml_write_files = function(x){
+        n = length(x)
+        for(i in 1:n){
+                filename = paste0("problem_id_",i,".txt")
+                write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+        }
+}
+pml_write_files(testpred2)
+```
